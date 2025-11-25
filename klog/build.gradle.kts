@@ -1,17 +1,17 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("maven-publish")
+    alias(libs.plugins.vanniktech.maven.publish)
 }
 
 android {
     namespace = "com.sanvar.log"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 23
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
 
@@ -33,22 +33,33 @@ android {
     }
 }
 
-publishing {
-    publications {
-        register<MavenPublication>("release") {
-            groupId = "io.github.flyxinhua"
-            artifactId = "klog"
-            version = "1.0.0"
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    signAllPublications()
+    coordinates("io.github.flyxinhua", "klog", "1.0.0")
 
-            afterEvaluate {
-                from(components["release"])
+    pom {
+        name.set("KLog")
+        description.set("A simple and powerful logger for Android and Kotlin.")
+        url.set("https://github.com/flyxinhua/KLog")
+
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
             }
         }
-    }
-    repositories {
-        maven {
-            name = "local"
-            url = uri("${buildDir}/repo")
+        developers {
+            developer {
+                id.set("flyxinhua")
+                name.set("sanvar")
+                email.set("flyxinhua@163.com")
+            }
+        }
+        scm {
+            connection.set("scm:git:github.com/flyxinhua/KLog.git")
+            developerConnection.set("scm:git:ssh://github.com/flyxinhua/KLog.git")
+            url.set("https://github.com/flyxinhua/KLog/tree/main")
         }
     }
 }
