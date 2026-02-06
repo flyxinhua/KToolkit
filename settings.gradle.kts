@@ -19,6 +19,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "KLog"
+rootProject.name = "KToolkit"
 include(":app")
 include(":klog")
+include(":kble")

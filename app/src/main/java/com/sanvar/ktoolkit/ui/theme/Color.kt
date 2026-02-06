@@ -1,4 +1,4 @@
-package com.sanvar.logdemo.ui.theme
+package com.sanvar.ktoolkit.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

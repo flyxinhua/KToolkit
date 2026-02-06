@@ -1,4 +1,4 @@
-package com.sanvar.logdemo
+package com.sanvar.ktoolkit
 
 import org.junit.Test
 

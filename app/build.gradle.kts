@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.sanvar.logdemo"
+    namespace = "com.sanvar.ktoolkit"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.sanvar.logdemo"
+        applicationId = "com.sanvar.ktoolkit"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -51,4 +51,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(project(":klog"))
+    implementation(project(":kble"))
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.permissions)
+
 }

@@ -34,40 +34,46 @@ android {
 }
 
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
-    signAllPublications()
+    // 只需要定义自己独特的坐标和名称
     coordinates("io.github.flyxinhua", "klog", "1.0.1")
-
     pom {
         name.set("KLog")
         description.set("A simple and powerful logger for Android and Kotlin.")
-        url.set("https://github.com/flyxinhua/KLog")
-
-        licenses {
-            license {
-                name.set("The Apache License, Version 2.0")
-                url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-            }
-        }
-        developers {
-            developer {
-                id.set("flyxinhua")
-                name.set("sanvar")
-                email.set("flyxinhua@163.com")
-            }
-        }
-        scm {
-            connection.set("scm:git:github.com/flyxinhua/KLog.git")
-            developerConnection.set("scm:git:ssh://github.com/flyxinhua/KLog.git")
-            url.set("https://github.com/flyxinhua/KLog/tree/main")
-        }
     }
 }
 
+//mavenPublishing {
+//    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+//    signAllPublications()
+//    coordinates("io.github.flyxinhua", "klog", "1.0.1")
+//
+//    pom {
+//        name.set("KLog")
+//        description.set("A simple and powerful logger for Android and Kotlin.")
+//        url.set("https://github.com/flyxinhua/KLog")
+//
+//        licenses {
+//            license {
+//                name.set("The Apache License, Version 2.0")
+//                url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+//            }
+//        }
+//        developers {
+//            developer {
+//                id.set("flyxinhua")
+//                name.set("sanvar")
+//                email.set("flyxinhua@163.com")
+//            }
+//        }
+//        scm {
+//            connection.set("scm:git:github.com/flyxinhua/KLog.git")
+//            developerConnection.set("scm:git:ssh://github.com/flyxinhua/KLog.git")
+//            url.set("https://github.com/flyxinhua/KLog/tree/main")
+//        }
+//    }
+//}
+
 
 dependencies {
-//    implementation(libs.androidx.core.ktx)
-//    implementation(libs.androidx.appcompat)
-//    implementation(libs.material)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
 }
