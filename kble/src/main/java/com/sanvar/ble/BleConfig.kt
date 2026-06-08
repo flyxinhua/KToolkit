@@ -13,16 +13,19 @@ data class BleConfig(
     /** 最大重连次数，-1表示无限 */
     val maxReconnectAttempts: Int = -1,
     /** 连接超时时间 */
-    val connectionTimeout: Long = 10000L,
+    val connectionTimeout: Long = 30_000L,
     /** 是否自动协商MTU */
     val autoNegotiateMtu: Boolean = true,
     /** 期望的MTU值 */
     val preferredMtu: Int = 517,
     /** 操作超时时间 */
-    val operationTimeout: Long = 5000L,
+    val operationTimeout: Long = 3000L,
     /** 是否启用辅助扫描 */
     val enableAssistScan: Boolean = true,
+    /** 自动开启可接受的通知 */
     val enableNotify: Boolean = true,
+    /** 是否开启蓝牙连接的日志 包含大量的数据日志 */
+    val enableConnectorLog: Boolean = true,
 ) {
     init {
         require(macAddress.matches(Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"))) {
@@ -35,12 +38,13 @@ data class BleConfig(
         private var enableGuard: Boolean = false
         private var reconnectInterval: Long = 3000L
         private var maxReconnectAttempts: Int = -1
-        private var connectionTimeout: Long = 10000L
+        private var connectionTimeout: Long = 30_000L
         private var autoNegotiateMtu: Boolean = true
         private var preferredMtu: Int = 517
-        private var operationTimeout: Long = 5000L
+        private var operationTimeout: Long = 3000L
         private var enableAssistScan: Boolean = true
         private var enableNotify: Boolean = true
+        private var enableConnectorLog: Boolean = true
 
         fun macAddress(mac: String) = apply { macAddress = mac }
         fun enableGuard(enable: Boolean) = apply { enableGuard = enable }
@@ -52,11 +56,12 @@ data class BleConfig(
         fun operationTimeout(timeout: Long) = apply { operationTimeout = timeout }
         fun enableAssistScan(enable: Boolean) = apply { enableAssistScan = enable }
         fun enableNotify(enable: Boolean) = apply { enableNotify = enable }
+        fun enableConnectorLog(enable: Boolean) = apply { enableConnectorLog = enable }
 
         fun build() = BleConfig(
             macAddress, enableGuard, reconnectInterval, maxReconnectAttempts,
             connectionTimeout, autoNegotiateMtu, preferredMtu, operationTimeout,
-            enableAssistScan, enableNotify
+            enableAssistScan, enableNotify, enableConnectorLog
         )
     }
 

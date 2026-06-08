@@ -1,4 +1,3 @@
-// BluetoothStateMonitor.kt
 package com.sanvar.ble.monitor
 
 import android.bluetooth.BluetoothAdapter
@@ -21,33 +20,50 @@ import java.util.concurrent.CopyOnWriteArraySet
  */
 class BluetoothStateMonitor private constructor() {
 
+    /** 日志标签 */
+    private val logger = BleLogger.withTag("BluetoothStateMonitor")
+
+    /**
+     * 蓝牙状态变化回调接口
+     */
     fun interface Callback {
         fun onBluetoothStateChanged(enabled: Boolean)
     }
 
+    /** 回调集合（线程安全） */
     private val callbacks = CopyOnWriteArraySet<Callback>()
+
+    /** 主线程 Handler，确保回调在主线程执行 */
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    /** 应用上下文 */
     private var context: Context? = null
+
+    /** 广播接收器是否已注册 */
     private var isReceiverRegistered = false
 
+    /** 单例实例 */
     companion object {
         val instance: BluetoothStateMonitor by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
             BluetoothStateMonitor()
         }
     }
 
+    /**
+     * 蓝牙状态广播接收器
+     */
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
             if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
 
             when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
                 BluetoothAdapter.STATE_ON -> {
-                    BleLogger.d("BluetoothStateMonitor Bluetooth ON")
+                    logger.d("Bluetooth ON")
                     notifyCallbacks(true)
                 }
+
                 BluetoothAdapter.STATE_OFF -> {
-                    BleLogger.d("BluetoothStateMonitor Bluetooth OFF")
+                    logger.d("Bluetooth OFF")
                     notifyCallbacks(false)
                 }
             }
@@ -71,7 +87,7 @@ class BluetoothStateMonitor private constructor() {
             val wasEmpty = callbacks.isEmpty()
 
             if (callbacks.add(callback)) {
-                BleLogger.d("BluetoothStateMonitor callback registered, count: ${callbacks.size}")
+                logger.d("callback registered, count: ${callbacks.size}")
 
                 // 第一个监听者，注册广播
                 if (wasEmpty) {
@@ -92,7 +108,7 @@ class BluetoothStateMonitor private constructor() {
     fun unregister(callback: Callback) {
         mainHandler.post {
             if (callbacks.remove(callback)) {
-                BleLogger.d("BluetoothStateMonitor callback unregistered, count: ${callbacks.size}")
+                logger.d("callback unregistered, count: ${callbacks.size}")
 
                 // 没有监听者了，取消广播
                 if (callbacks.isEmpty()) {
@@ -114,9 +130,9 @@ class BluetoothStateMonitor private constructor() {
                 ctx.registerReceiver(receiver, filter)
             }
             isReceiverRegistered = true
-            BleLogger.d("BluetoothStateMonitor receiver registered")
+            logger.d("receiver registered")
         } catch (e: Exception) {
-            BleLogger.e("Register receiver failed", e)
+            logger.e("Register receiver failed", e)
         }
     }
 
@@ -126,9 +142,9 @@ class BluetoothStateMonitor private constructor() {
         try {
             context?.unregisterReceiver(receiver)
             isReceiverRegistered = false
-            BleLogger.d("BluetoothStateMonitor receiver unregistered")
+            logger.d("receiver unregistered")
         } catch (e: Exception) {
-            BleLogger.e("Unregister receiver failed", e)
+            logger.e("Unregister receiver failed", e)
         }
     }
 
@@ -137,7 +153,7 @@ class BluetoothStateMonitor private constructor() {
             try {
                 it.onBluetoothStateChanged(enabled)
             } catch (e: Exception) {
-                BleLogger.e("Callback error", e)
+                logger.e("Callback error", e)
             }
         }
     }

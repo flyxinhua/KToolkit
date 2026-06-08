@@ -3,11 +3,35 @@ package com.sanvar.ble
 import android.bluetooth.BluetoothDevice
 import java.util.UUID
 
+
+/**
+ *  蓝牙设备的基本属性
+ *
+ * @property battery 电量
+ * @property firmVersion 固件件版本
+ * @property hardVersion 硬件版本
+ * @property softVersion 软件版本
+ * @property modelString 设备型号
+ * @property serialNumber 设备序列号
+ * @property manufacturerName 厂商
+ */
+data class BleBaseInfo(
+    val battery: Int = -1,
+    val firmVersion: String = "",
+    val hardVersion: String = "",
+    val softVersion: String = "",
+    val modelString: String = "",
+    val serialNumber: String = "",
+    val manufacturerName: String = "",
+    val systemId: String = "",
+)
+
+
 /**
  * GATT特征包装
  */
 data class GattCharacteristic(
-    val serverUUID: UUID,
+    val serviceUUID: UUID,
     val uuid: UUID,
     val properties: Int,
     val canRead: Boolean,
@@ -42,12 +66,12 @@ data class BleError(
  * 连接状态
  */
 enum class ConnectionState {
+    DISCONNECTING,      // 断开中
     DISCONNECTED,      // 已断开
     CONNECTING,        // 连接中
     CONNECTED,         // 已连接
     DISCOVERING,       // 发现服务中
     READY,             // 就绪（已发现服务）
-    DISCONNECTING      // 断开中
 }
 
 /**
@@ -72,19 +96,16 @@ interface BleCallback {
     fun onConnectionStateChanged(state: ConnectionState, device: BluetoothDevice?) {}
 
     /** 断开连接 */
-    fun onDisconnected(reason: DisconnectReason) {}
+    fun onDisconnected(reason: DisconnectReason, gattStatus: Int, isConnectPhase: Boolean) {}
 
     /** MTU协商完成 */
     fun onMtuChanged(mtu: Int) {}
 
     /** 收到通知数据 */
-    fun onNotificationReceived(uuid: UUID, data: ByteArray) {}
+    fun onReceivedData(serviceUUID: UUID, uuid: UUID, data: ByteArray) {}
 
     /** 读取完成 */
-    fun onReadComplete(uuid: UUID, data: ByteArray?, success: Boolean) {}
-
-    /** 写入完成 */
-    fun onWriteComplete(uuid: UUID, success: Boolean) {}
+    fun onReadData(serviceUUID: UUID, uuid: UUID, data: ByteArray) {}
 
     /** 通知开关状态变化 */
     fun onNotificationEnabled(uuid: UUID, enabled: Boolean, success: Boolean) {}
@@ -97,4 +118,7 @@ interface BleCallback {
 
     /** 蓝牙开关状态变化 */
     fun onBluetoothStateChanged(enabled: Boolean) {}
+
+    /** 当读取到设备的基本属性时，会回调当前方法，可能会回调多次。 */
+    fun onReportBaseInfo(info: BleBaseInfo){}
 }

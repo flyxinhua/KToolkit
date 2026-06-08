@@ -1,4 +1,3 @@
-import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
     alias(libs.plugins.android.library)
@@ -41,38 +40,6 @@ mavenPublishing {
         description.set("A simple and powerful logger for Android and Kotlin.")
     }
 }
-
-//mavenPublishing {
-//    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
-//    signAllPublications()
-//    coordinates("io.github.flyxinhua", "klog", "1.0.1")
-//
-//    pom {
-//        name.set("KLog")
-//        description.set("A simple and powerful logger for Android and Kotlin.")
-//        url.set("https://github.com/flyxinhua/KLog")
-//
-//        licenses {
-//            license {
-//                name.set("The Apache License, Version 2.0")
-//                url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-//            }
-//        }
-//        developers {
-//            developer {
-//                id.set("flyxinhua")
-//                name.set("sanvar")
-//                email.set("flyxinhua@163.com")
-//            }
-//        }
-//        scm {
-//            connection.set("scm:git:github.com/flyxinhua/KLog.git")
-//            developerConnection.set("scm:git:ssh://github.com/flyxinhua/KLog.git")
-//            url.set("https://github.com/flyxinhua/KLog/tree/main")
-//        }
-//    }
-//}
-
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")

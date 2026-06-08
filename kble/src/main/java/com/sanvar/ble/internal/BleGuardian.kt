@@ -8,6 +8,9 @@ import com.sanvar.ble.utils.BleLogger
 
 /**
  * 连接守护者 - 内部类
+ *
+ * 负责监控蓝牙连接状态，在连接断开时自动触发重连。
+ * 支持快速重试和守护重连两种策略，以及前后台状态感知。
  */
 internal class BleGuardian(
     private val config: BleConfig,
@@ -15,11 +18,15 @@ internal class BleGuardian(
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private val TAG = "BleGuardian"
+    private val logger = BleLogger.withTag(TAG)
 
 
-    @Volatile private var isGuarding = false
-    @Volatile private var isPaused = false
-    @Volatile private var isReconnecting = false
+    @Volatile
+    private var isGuarding = false
+    @Volatile
+    private var isPaused = false
+    @Volatile
+    private var isReconnecting = false
 
     // 快速重试
     private var quickRetryCount = 0
@@ -34,27 +41,27 @@ internal class BleGuardian(
         if (isGuarding) return
         isGuarding = true
         resetCounters()
-        BleLogger.d("$TAG Guardian started")
+        logger.d("Guardian started")
     }
 
     fun stopGuard() {
         isGuarding = false
         cancelReconnect()
         resetCounters()
-        BleLogger.d("$TAG Guardian stopped")
+        logger.d("Guardian stopped")
     }
 
     fun pause() {
         if (isPaused) return
         isPaused = true
         cancelReconnect()
-        BleLogger.d("$TAG Guardian paused")
+        logger.d("Guardian paused")
     }
 
     fun resume(isConnected: Boolean) {
         if (!isPaused) return
         isPaused = false
-        BleLogger.d("$TAG Guardian resumed")
+        logger.d("Guardian resumed ${config.macAddress} is connected: $isConnected")
 
         if (isGuarding && !isConnected && !isReconnecting) {
             scheduleReconnect(0)
@@ -89,7 +96,7 @@ internal class BleGuardian(
 
     private fun scheduleQuickRetry() {
         quickRetryCount++
-        BleLogger.d("$TAG Quick retry: $quickRetryCount/$maxQuickRetry")
+        logger.d("Quick retry: $quickRetryCount/$maxQuickRetry")
 
         isReconnecting = true
         handler.postDelayed({
@@ -103,13 +110,13 @@ internal class BleGuardian(
 
     private fun scheduleReconnect(delay: Long) {
         if (config.maxReconnectAttempts >= 0 && reconnectCount >= config.maxReconnectAttempts) {
-            BleLogger.w("$TAG Max reconnect reached: $reconnectCount")
+            logger.w("Max reconnect reached: $reconnectCount")
             return
         }
 
         cancelReconnect()
         reconnectCount++
-        BleLogger.d("$TAG Reconnect: $reconnectCount in ${delay}ms")
+        logger.d("Reconnect: $reconnectCount in ${delay}ms")
 
         isReconnecting = true
         reconnectRunnable = Runnable {

@@ -51,18 +51,6 @@ fun BLEScreen(navHostController: NavHostController, macAddress: String) {
 
     var baseInfo by remember { mutableStateOf(BleBaseInfo(mac = macAddress, name = macAddress)) }
 
-    fun readBaseInfo() {
-        bleDevice.read(BleUUID.FIRM_VERSION)
-        bleDevice.read(BleUUID.SOFT_VERSION)
-        bleDevice.read(BleUUID.HARD_VERSION)
-        bleDevice.read(BleUUID.MODEL)
-        bleDevice.read(BleUUID.SYSID)
-        bleDevice.read(BleUUID.MANU)
-        bleDevice.read(BleUUID.SERIAL)
-        bleDevice.read(BleUUID.BATTERY)
-    }
-
-
     val bleCallback = object : BleCallback {
         override fun onConnectionStateChanged(state: ConnectionState, device: BluetoothDevice?) {
             baseInfo = baseInfo.copy(
@@ -71,8 +59,8 @@ fun BLEScreen(navHostController: NavHostController, macAddress: String) {
             )
 
             if (state == ConnectionState.READY) {
-                // 读取相关内容
-                readBaseInfo()
+                // 自动上报设备基本属性，不需要主动去读
+
             }
         }
 
@@ -80,72 +68,41 @@ fun BLEScreen(navHostController: NavHostController, macAddress: String) {
             bleMtu = mtu
         }
 
-        override fun onNotificationReceived(uuid: UUID, data: ByteArray) {
+        override fun onReceivedData(serviceUUID: UUID, uuid: UUID, data: ByteArray) {
+            super.onReceivedData(serviceUUID, uuid, data)
             handleCharacteristicRead(uuid, data)
         }
 
-        override fun onReadComplete(uuid: UUID, data: ByteArray?, success: Boolean) {
-            handleCharacteristicRead(uuid, data ?: byteArrayOf())
+        override fun onReadData(serviceUUID: UUID, uuid: UUID, data: ByteArray) {
+            super.onReadData(serviceUUID, uuid, data)
+            handleCharacteristicRead(uuid, data)
+        }
+
+        override fun onReportBaseInfo(info: com.sanvar.ble.BleBaseInfo) {
+            super.onReportBaseInfo(info)
+            baseInfo = baseInfo.copy(
+                battery = info.battery,
+                softVersion = info.softVersion,
+                hardwareVersion = info.hardVersion,
+                firmwareVersion = info.firmVersion,
+                model = info.modelString,
+                serial = info.serialNumber,
+                sysId = info.systemId,
+                manufacturer = info.manufacturerName,
+            )
         }
 
 
         private fun handleCharacteristicRead(uuid: UUID, data: ByteArray) {
             val feature = BleUUID.identify(uuid)
-
-            when (feature) {
-                is BleUUID.BleFeature.Battery -> {
-                    baseInfo = baseInfo.copy(battery = data[0].toInt())
-                    KLog.i { "battery: ${data[0]}" }
-
-                }
-
-                is BleUUID.BleFeature.FirmwareVersion -> {
-                    baseInfo = baseInfo.copy(firmwareVersion = String(data))
-                    KLog.i { "firmwareVersion:${String(data)}" }
-                }
-
-                is BleUUID.BleFeature.SoftwareVersion -> {
-                    baseInfo = baseInfo.copy(softVersion = String(data))
-                    KLog.i { "softVersion:${String(data)}" }
-                }
-
-                is BleUUID.BleFeature.HardwareVersion -> {
-                    baseInfo = baseInfo.copy(hardwareVersion = String(data))
-                    KLog.i { "hardwareVersion:${String(data)}" }
-                }
-
-                is BleUUID.BleFeature.SystemId -> {
-                    baseInfo = baseInfo.copy(sysId = String(data))
-                    KLog.i { "sysId:${String(data)}" }
-                }
-
-                is BleUUID.BleFeature.ModelNumber -> {
-                    baseInfo = baseInfo.copy(model = String(data))
-                    KLog.i { "model:${String(data)}" }
-                }
-
-                is BleUUID.BleFeature.SerialNumber -> {
-                    baseInfo = baseInfo.copy(serial = String(data))
-                    KLog.i { "serial:${String(data)}" }
-                }
-
-                is BleUUID.BleFeature.ManufacturerName -> {
-                    baseInfo = baseInfo.copy(manufacturer = String(data))
-                    KLog.i { "manufacturer:${String(data)}" }
+            when (uuid) {
+                BleUUID.HEART_RATE_MEASUREMENT -> {
+                    val heartRateData = parseHeartRateMeasurement(data)
+                    KLog.i { "heartRateData: $heartRateData" }
                 }
 
                 else -> {
-                    when (uuid) {
-                        BleUUID.HEART_RATE_MEASUREMENT -> {
-                            val heartRateData = parseHeartRateMeasurement(data)
-                            KLog.i { "heartRateData: $heartRateData" }
-                        }
-
-                        else -> {
-                            KLog.i { "notify uuid: $uuid  , data:${String(data)}" }
-                        }
-                    }
-
+                    KLog.i { "notify uuid: $uuid  , data:${String(data)}" }
                 }
             }
         }
@@ -159,8 +116,7 @@ fun BLEScreen(navHostController: NavHostController, macAddress: String) {
 
     DisposableEffect(Unit) {
         onDispose {
-            bleDevice.unregisterCallback(bleCallback)
-            bleDevice.disconnect()
+            BleManager.instance.removeDevice(bleDevice.macAddress)
         }
     }
 

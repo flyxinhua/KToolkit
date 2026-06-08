@@ -7,7 +7,7 @@ KBLE 是一个专为 Android 打造的轻量级、高性能的蓝牙低功耗 (B
 ## 核心特性
 
 - **设备中心连接管理**: 每个 `BleDevice` 实例独立管理一个设备的连接、服务发现和数据操作。
-- **智能扫描**: 内置 `ScanManager` 采用 Duty Cycle (30s 扫描 / 1s 暂停) 机制，优化扫描性能和电量消耗。
+- **智能扫描**: 内置 `ScanManager` 采用 Duty Cycle 机制，优化扫描性能和电量消耗。
 - **自动连接与重连**: 内置强大的重连机制和连接守护 (Guard) 模式，确保连接的持久性。
 - **生命周期感知**: 自动监听应用前后台切换，智能管理连接状态。
 - **蓝牙状态监控**: 自动监听系统蓝牙开关状态，并通知所有关联设备。
@@ -50,28 +50,29 @@ class YourApp : Application() {
 
 ### 2. 扫描设备
 
-使用 `ScanManager.getInstance()` 来启动和停止扫描。扫描会以 Duty Cycle 模式运行，直到所有监听器被移除。
+使用 `ScanManager` 来启动和停止扫描。扫描会以 Duty Cycle 模式运行，直到所有监听器被移除。
 
 ```kotlin
 import com.sanvar.ble.sanner.ScanManager
-import com.sanvar.ble.sanner.ScanManager.ScanCallback
-import android.bluetooth.BluetoothDevice
-import com.sanvar.log.KLog
+import android.bluetooth.le.ScanResult
 
-val scanCallback = object : ScanCallback {
-    override fun onScanDevice(device: BluetoothDevice?, rssi: Int, scanRecord: ByteArray?) {
+val scanCallback = object : ScanManager.ScanCallbackWrapper {
+    override fun onScanResult(result: ScanResult) {
         // 处理扫描到的设备信息
-        KLog.d { "Found device: ${device?.name} at RSSI: $rssi" }
+        val device = result.device
+        val rssi = result.rssi
+        // ...
     }
 }
 
 // 启动扫描（如果扫描未运行，则启动）
-ScanManager.getInstance().startScan(scanCallback)
+ScanManager.init(context)
+ScanManager.startScan(scanCallback)
 
 // ...
 
 // 停止扫描（只有当所有监听器都停止后，扫描才会真正停止）
-ScanManager.getInstance().stopScan(scanCallback)
+ScanManager.stopScan(scanCallback)
 ```
 
 ### 3. 获取设备并配置
@@ -87,7 +88,7 @@ val config = BleConfig.builder()
     .macAddress(macAddress)
     .enableGuard(true) // 开启连接守护，应用回到前台时自动尝试恢复连接
     .maxReconnectAttempts(-1) // 无限重试
-    .preferredMtu(256) // 设置期望的 MTU
+    .preferredMtu(517) // 设置期望的 MTU
     .build()
 
 val bleDevice = BleManager.instance.getOrPutDevice(config)
@@ -101,37 +102,36 @@ val bleDevice = BleManager.instance.getOrPutDevice(config)
 import com.sanvar.ble.BleCallback
 import com.sanvar.ble.ConnectionState
 import android.bluetooth.BluetoothDevice
-import com.sanvar.log.KLog
 import java.util.UUID
 
 // 1. 定义回调对象
 val bleCallback = object : BleCallback {
     override fun onConnectionStateChanged(state: ConnectionState, device: BluetoothDevice?) {
         when (state) {
-            ConnectionState.READY -> KLog.d { "设备已连接成功并初始化完成" }
-            ConnectionState.DISCONNECTED -> KLog.d { "设备已断开连接" }
-            else -> KLog.i { "连接状态变化: $state" }
+            ConnectionState.READY -> {
+                // 设备已连接成功并初始化完成
+            }
+            ConnectionState.DISCONNECTED -> {
+                // 设备已断开连接
+            }
+            else -> {
+                // 连接状态变化
+            }
         }
     }
 
     override fun onMtuChanged(mtu: Int) {
-        KLog.i { "MTU 已协商为: $mtu" }
+        // MTU 已协商完成
     }
 
     // 处理通知或指示收到的数据
-    override fun onNotificationReceived(uuid: UUID, data: ByteArray) {
-        // ... 处理接收到的数据
-        KLog.d { "收到通知/指示，UUID: $uuid, 数据长度: ${data.size}" }
+    override fun onReceivedData(serviceUuid: UUID, uuid: UUID, data: ByteArray) {
+        // 处理接收到的数据
     }
 
     // 处理特征读取操作完成的结果
-    override fun onReadComplete(uuid: UUID, data: ByteArray?, success: Boolean) {
-        if (success) {
-            // data?.let { /* 处理数据 */ }
-            KLog.d { "特征读取成功，UUID: $uuid, 数据长度: ${data?.size ?: 0}" }
-        } else {
-            KLog.e { "特征读取失败，UUID: $uuid" }
-        }
+    override fun onReadData(serviceUuid: UUID, uuid: UUID, data: ByteArray) {
+        // 处理读取的数据
     }
 }
 
@@ -140,23 +140,40 @@ bleDevice.registerCallback(bleCallback)
 bleDevice.connect()
 
 // 3. 执行操作（例如异步读取特征值）
-// bleDevice.read(characteristicUUID) 
+// bleDevice.read(characteristicUUID)
 
-// 4. 释放资源时注销回调并断开连接
-bleDevice.unregisterCallback(bleCallback)
+// 4. 执行写入操作
+// bleDevice.write(characteristicUUID, data)
+
+// 5. 释放资源时注销回调并断开连接
 bleDevice.disconnect()
 BleManager.instance.removeDevice(macAddress)
 ```
 
+## BleConfig 配置项
+
+| 配置项 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| macAddress | String | - | 设备 MAC 地址（必填） |
+| enableGuard | Boolean | false | 是否开启连接守护 |
+| reconnectInterval | Long | 3000L | 重连间隔（毫秒） |
+| maxReconnectAttempts | Int | -1 | 最大重连次数，-1 表示无限 |
+| connectionTimeout | Long | 30000L | 连接超时时间（毫秒） |
+| autoNegotiateMtu | Boolean | true | 是否自动协商 MTU |
+| preferredMtu | Int | 517 | 期望的 MTU 值 |
+| operationTimeout | Long | 3000L | 操作超时时间（毫秒） |
+| enableNotify | Boolean | true | 是否自动开启通知 |
+| enableConnectorLog | Boolean | true | 是否开启连接器日志 |
+
 ## 权限要求
 
-KBLE 依赖于 Android 的标准蓝牙权限。在 `AndroidManifest.xml` 中需要声明以下权限（具体要求取决于 Android 版本和功能）：
+KBLE 依赖于 Android 的标准蓝牙权限。在 `AndroidManifest.xml` 中需要声明以下权限：
 
 ```xml
 <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /> <!-- 对于 Android 11 及以下版本进行扫描是必需的 -->
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /> <!-- Android 11 及以下版本扫描必需 -->
 ```
 
 ## 架构思想: 设备中心模型

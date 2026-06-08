@@ -26,13 +26,13 @@ fun MainScreen(navHostController: NavHostController) {
             Spacer(Modifier.height(16.dp))
             Button(onClick = {
                 navHostController.navigate("log")
-            }) { Text("Test Log") }
+            }) { Text("Log example") }
 
             Spacer(Modifier.height(16.dp))
 
             Button(onClick = {
                 navHostController.navigate("scanner")
-            }) { Text("Test BLE") }
+            }) { Text("BLE example") }
         }
     }
 }

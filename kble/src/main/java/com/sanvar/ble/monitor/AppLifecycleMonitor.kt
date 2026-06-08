@@ -1,4 +1,3 @@
-// AppLifecycleMonitor.kt
 package com.sanvar.ble.monitor
 
 import android.os.Handler
