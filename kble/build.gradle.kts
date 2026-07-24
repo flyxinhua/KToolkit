@@ -34,7 +34,7 @@ android {
 
 mavenPublishing {
     // 只需要定义自己独特的坐标和名称
-    coordinates("io.github.flyxinhua", "kble", "1.0.1")
+    coordinates("io.github.flyxinhua", "kble", "1.0.2")
     pom {
         name.set("KBLE")
         description.set("A Bluetooth Low Energy library for Android.")
