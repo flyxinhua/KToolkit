@@ -50,6 +50,9 @@ internal class BleTaskQueue(
     /** MTU 头部大小（操作码 + 句柄），计算有效负载时需要减去 */
     private val MTU_HEADER_SIZE = 3
 
+    /** 超时后的冷却时间（毫秒），等待 in-flight GATT 操作完成 */
+    private val TIMEOUT_COOLDOWN = 1000L
+
     /** 日志实例 */
     private val logger = BleLogger.withTag("${TAG}_${config.macAddress}")
 
@@ -77,7 +80,6 @@ internal class BleTaskQueue(
 
     /** 当前写入状态（用于分包传输） */
     private var writeState: WriteState? = null
-
     /** 当前 MTU 值，初始为最小 MTU（23 字节） */
     private var currentMtu: Int = 23
 
@@ -170,7 +172,6 @@ internal class BleTaskQueue(
         val t = currentTask
 
         t?.let { task ->
-            // ================= 【核心黑科技：原地无缝降级】 =================
             // 当大包发送失败时（如 MTU 协商失败或设备不支持大包），
             // 直接通知上层失败，上层重传时会自动降级为 20 字节小包
             if (task is BleTask.Write && writeState != null) {
@@ -185,8 +186,7 @@ internal class BleTaskQueue(
                     // 通知上层失败，上层 OBKCmdSender 收到 false 后会执行重传逻辑
                     // 重传时调用 enqueueWrite 会被自动切成 20 字节的小包
                     workerHandler.post { t.completionCallback?.invoke(false) }
-                    workerHandler.post { processNext() }
-                    // 标记正在发送大数据
+                    // 标记正在发送大数据，连接恢复前降级为 20 字节
                     BleHelper.setSendingBigData(config.macAddress, true)
                     return
                 }
@@ -215,8 +215,9 @@ internal class BleTaskQueue(
                 workerHandler.post { t.completionCallback?.invoke(false) }
             }
 
-            // 处理下一个任务
-            workerHandler.post { processNext() }
+            // 处理下一个任务（超时后加冷却期，等待 in-flight GATT 操作完成）
+            val cooldown = if (reason == "Timeout") TIMEOUT_COOLDOWN else 0L
+            workerHandler.postDelayed({ processNext() }, cooldown)
         } ?: run {
             // 当前任务为 null，直接清理状态
             currentTask = null
@@ -298,13 +299,16 @@ internal class BleTaskQueue(
         completionCallback: ((Boolean) -> Unit)? = null
     ) {
         // 计算分包大小
-        val payloadSize = if (BleHelper.isSafePayloadForMac(context, config.macAddress)) {
-            // 安全模式：使用 20 字节小包
+        val payloadSize = if (BleHelper.isSafePayloadForMac(context, config.macAddress)
+            || BleHelper.isSendingBigData(config.macAddress)
+        ) {
+            // 安全模式：设备在黑名单中，或当前连接上曾有大包写入超时，降级为 20 字节
             20
         } else {
             // 正常模式：使用当前 MTU
             currentMtu - MTU_HEADER_SIZE
         }
+
 
         // 分包处理
         val chunks = if (payloadSize <= 0 || data.size <= payloadSize) {
@@ -326,8 +330,10 @@ internal class BleTaskQueue(
                     this.completionCallback = completionCallback
                     this.progressCallback = progressCallback
                 }
-
-        // 入队
+        // 如果发送的数据大于 20 字节，标记为发送大数据状态
+        if (data.size > 20) {
+            BleHelper.setSendingBigData(config.macAddress, true)
+        }
         enqueue(task)
     }
 
@@ -394,7 +400,7 @@ internal class BleTaskQueue(
     fun writeCompleted(uuid: UUID, success: Boolean) {
         lock.withLock {
             val state = writeState
-            // 验证状态和 UUID 是否匹配
+            // 验证状态和 UUID 是否匹配（防御迟到的回调）
             if (state != null && state.task.characteristicUuid == uuid) {
                 handleWriteResultLocked(state, success)
             }
@@ -533,12 +539,6 @@ internal class BleTaskQueue(
             chunk,
             state.task.writeType == BleTask.Write.WriteType.WITH_RESPONSE
         )
-
-        // 如果底层直接返回 false，触发降级机制
-        if (!result) {
-            taskFailed("WriteInternal return false")
-        }
-
         return result
     }
 

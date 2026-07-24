@@ -37,10 +37,10 @@ object BleHelper {
     private const val PREFS_NAME = "BleMtuBlacklist"
 
     /** 触发黑名单所需的违规次数（5 分钟内累计 3 次） */
-    private const val MAX_STRIKES = 3
+    private const val MAX_STRIKES = 2
 
     /** 违规时间窗口（5 分钟），超出此时间则重置计数 */
-    private const val WINDOW_MS = 5 * 60 * 1000L
+    private const val WINDOW_MS = 8 * 60 * 1000L
 
     /**
      * 违规记录
@@ -105,7 +105,7 @@ object BleHelper {
      *
      * status=8 是 BLE 错误码，通常表示连接超时或设备不可达。
      * 如果断开时正在发送大数据，则认定为一次违规。
-     * 在 5 分钟窗口内累计 3 次违规后，将该 MAC 加入黑名单并持久化。
+     * 在 WINDOW_MS 分钟窗口内累计 MAX_STRIKES 次违规后，将该 MAC 加入黑名单并持久化。
      *
      * @param context Android 上下文
      * @param macAddress 设备 MAC 地址
