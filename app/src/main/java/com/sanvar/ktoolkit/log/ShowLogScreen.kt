@@ -16,6 +16,8 @@ import androidx.navigation.NavHostController
 import com.sanvar.ktoolkit.weiget.CenterTopBar
 import com.sanvar.log.KLog
 
+private val logger = KLog.withTag("LogDemo")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShowLogScreen(navHostController: NavHostController) {
@@ -34,25 +36,25 @@ fun ShowLogScreen(navHostController: NavHostController) {
             Text("KLog Demo")
 
             Button(
-                onClick = { KLog.d { "Log.d ${System.currentTimeMillis()}" } },
+                onClick = { logger.d { "Log.d ${System.currentTimeMillis()}" } },
                 modifier = Modifier.padding(8.dp)
             ) { Text("Log.d") }
             Button(
-                onClick = { KLog.i { "Log.i ${System.currentTimeMillis()}" } },
+                onClick = { logger.i { "Log.i ${System.currentTimeMillis()}" } },
                 modifier = Modifier.padding(8.dp)
             ) { Text("Log.i") }
             Button(
-                onClick = { KLog.w { "Log.w ${System.currentTimeMillis()}" } },
+                onClick = { logger.w { "Log.w ${System.currentTimeMillis()}" } },
                 modifier = Modifier.padding(8.dp)
             ) { Text("Log.w") }
             Button(
-                onClick = { KLog.e { "Log.e ${System.currentTimeMillis()}" } },
+                onClick = { logger.e { "Log.e ${System.currentTimeMillis()}" } },
                 modifier = Modifier.padding(8.dp)
             ) { Text("Log.e") }
 
 
             Button(
-                onClick = { KLog.e(throwable = Exception(" test throwable")) { "Log.e" } },
+                onClick = { logger.e(throwable = Exception(" test throwable")) { "Log.e" } },
                 modifier = Modifier.padding(8.dp)
             ) { Text("throwable") }
 

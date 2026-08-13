@@ -509,6 +509,7 @@ internal class BleConnector(
         reason: DisconnectReason?,
         device: BluetoothDevice?
     ) {
+        logger.w("updateState: $state, $reason, ${device?.name}")
         // 如果状态没有变化，不处理
         if (connectionState == state) return
         // 更新状态

@@ -1,17 +1,18 @@
 package com.sanvar.ktoolkit.main
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.navigation.compose.rememberNavController
+import com.sanvar.ktoolkit.ui.theme.KToolKitTheme
 import com.sanvar.log.KLog
 import com.sanvar.log.LogCatPrinter
 import com.sanvar.log.SmartFilePrinter
 import com.sanvar.log.UDPLogPrinter
 import com.sanvar.log.WarpLogPrinter
-import com.sanvar.ktoolkit.ui.theme.KToolKitTheme
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -36,8 +37,7 @@ private fun setupLog(ctx: Context) {
 
     val dir = File(ctx.filesDir, "KToolKit")
     warpLogPrinter.addLogPrinter(SmartFilePrinter(dir.absolutePath))
-    KLog.setup(true, output = warpLogPrinter)
+    val isDebuggable = ctx.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    KLog.setup(isDebuggable, output = warpLogPrinter)
 }
-
-
 

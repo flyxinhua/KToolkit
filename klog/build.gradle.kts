@@ -34,7 +34,7 @@ android {
 
 mavenPublishing {
     // 只需要定义自己独特的坐标和名称
-    coordinates("io.github.flyxinhua", "klog", "1.0.1")
+    coordinates("io.github.flyxinhua", "klog", "1.0.2")
     pom {
         name.set("KLog")
         description.set("A simple and powerful logger for Android and Kotlin.")
@@ -43,4 +43,6 @@ mavenPublishing {
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }

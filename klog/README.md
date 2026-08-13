@@ -21,10 +21,9 @@ KLog 是一个为 Android 设计的轻量、强大且高度可扩展的日志框
 
 ```kotlin
 dependencies {
-    implementation("io.github.flyxinhua:klog:1.0.1")
+    implementation("io.github.flyxinhua:klog:1.0.2")
 }
 ```
-*(请将 `1.0.0` 替换为最新的版本号)*
 
 ## 基础用法
 
@@ -54,16 +53,49 @@ class YourApp : Application() {
 ### 2. 记录日志
 
 ```kotlin
+// 建议按业务领域创建一次并复用
+private val authLog = KLog.withTag("Auth")
+
 // 记录一个调试信息
-KLog.d { "用户登录成功, username: $username" }
+authLog.d { "用户登录成功, username: $username" }
 
 // 记录一个带异常的错误
 try {
     // ... some code that might fail
 } catch (e: Exception) {
-    KLog.e(e) { "数据处理失败" }
+    authLog.e(e) { "数据处理失败" }
 }
 ```
+
+原有的 `KLog.d/i/w/e` 调用继续可用，并使用默认领域 TAG `KLog`，因此现有代码无需一次性迁移：
+
+```kotlin
+KLog.d { "旧调用仍然有效" }
+```
+
+### 3. Debug 与 Release 输出格式
+
+领域 TAG 由业务代码明确指定，不依赖源码文件名、类名或 R8 混淆结果。`isDebug` 只控制是否追加
+线程和源码位置：
+
+```text
+# isDebug = true：领域 TAG + 线程 + 源码位置
+[Auth] main|(LoginRepository.kt:37) 用户登录成功
+
+# isDebug = false：只保留稳定的领域 TAG，不采集调用堆栈
+[Auth] 用户登录成功
+```
+
+建议使用少量、稳定的领域名称，并将 Logger 定义为文件级或类级属性：
+
+```kotlin
+private val bleLog = KLog.withTag("BLE")
+private val networkLog = KLog.withTag("Network")
+private val databaseLog = KLog.withTag("Database")
+```
+
+领域 TAG 是消息的一部分，因此 `LogCatPrinter`、`SmartFilePrinter`、`UDPLogPrinter` 和自定义
+`LogPrinter` 都会获得相同格式。`LogCatPrinter("YourAppTag")` 的 Android Logcat TAG 列保持不变。
 
 ## 高级用法: 组合式日志输出
 

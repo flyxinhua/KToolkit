@@ -30,7 +30,7 @@ class BleDevice internal constructor(context: Context, val config: BleConfig) : 
     val macAddress: String = config.macAddress.uppercase()
     private var _callback: BleCallback? = null
     private var isReleased = false
-    private val logger = BleLogger.withTag("BleDevice_${config.macAddress}")
+    private var logger = BleLogger.withTag("BleDevice_${config.macAddress}")
 
     // 缓存的特征值列表
     private var writeUUIDs: MutableList<GattCharacteristic> = mutableListOf()
@@ -176,12 +176,22 @@ class BleDevice internal constructor(context: Context, val config: BleConfig) : 
 
     // ==================== 底层 GATT 回调处理 (实现 InnerGattCallback) ====================
 
+
+    private var isResetLogger = false
+
     override fun onConnectionStateChange(
         state: ConnectionState,
         reason: DisconnectReason?,
         device: BluetoothDevice?
     ) {
-        logger.w("onConnectionStateChange: $state ")
+
+        if (device != null && device.name != null && !isResetLogger ) {
+            logger = BleLogger.withTag("BleDevice_${device?.name}")
+            isResetLogger = true
+        }
+
+
+        logger.w("onConnectionStateChange: $state , $reason, ${device?.name}")
         // 1. 处理业务逻辑
         if (state == ConnectionState.READY) {
             guardian?.onConnected()
