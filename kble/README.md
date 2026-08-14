@@ -75,6 +75,19 @@ ScanManager.startScan(scanCallback)
 ScanManager.stopScan(scanCallback)
 ```
 
+前台的“添加设备”页面建议使用 UI 优先扫描。该入口必须传入最大扫描时长，
+在此期间不会被内部连接器的扫描避让或周期休息打断：
+
+```kotlin
+// 最多扫描 15 秒，到期自动停止
+ScanManager.startUiScan(scanCallback, maxScanDurationMs = 15_000L)
+
+// 页面退出或用户点击“停止”时主动结束
+ScanManager.stopUiScan(scanCallback)
+```
+
+UI 扫描仍受 Android 系统扫描频率和蓝牙硬件资源限制。
+
 ### 3. 获取设备并配置
 
 通过 `BleConfig` 指定设备的 MAC 地址和连接配置，然后从 `BleManager` 获取或创建一个 `BleDevice` 实例。

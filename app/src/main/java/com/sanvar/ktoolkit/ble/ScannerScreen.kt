@@ -53,6 +53,9 @@ import com.sanvar.ktoolkit.weiget.CenterTopBar
 import com.sanvar.log.KLog
 
 
+private const val UI_SCAN_TIMEOUT_MS = 15_000L
+
+
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -83,18 +86,24 @@ fun ScannerScreen(navHostController: NavHostController) {
         }
     }
 
-    val scannerCallBack = object : ScanManager.ScanCallbackWrapper {
-        @SuppressLint("MissingPermission")
-        override fun onScanResult(result: ScanResult) {
-            if (!result.device.name.isNullOrBlank()) {
-                // 加入列表
-                val isExists = scannerResult.any { exitDev ->
-                    exitDev.address == result.device.address
+    val scannerCallBack = remember {
+        object : ScanManager.ScanCallbackWrapper {
+            @SuppressLint("MissingPermission")
+            override fun onScanResult(result: ScanResult) {
+                val isExists = scannerResult.any { existingDevice ->
+                    existingDevice.address == result.device.address
                 }
                 if (!isExists) {
                     scannerResult.add(result.device)
-                    KLog.i { "Found BLE device: ${result.device.name} @ ${result.device.address}" }
+                    val displayName = result.scanRecord?.deviceName
+                        ?: result.device.name
+                        ?: "Unknown BLE device"
+                    KLog.i { "Found BLE device: $displayName @ ${result.device.address}" }
                 }
+            }
+
+            override fun onUiScanStopped(reason: ScanManager.UiScanStopReason) {
+                KLog.i { "UI BLE scan stopped: $reason" }
             }
         }
     }
@@ -109,7 +118,7 @@ fun ScannerScreen(navHostController: NavHostController) {
         } else {
             // 进行扫描
             ScanManager.init(context = ctx)
-            ScanManager.startScan(scannerCallBack)
+            ScanManager.startUiScan(scannerCallBack, UI_SCAN_TIMEOUT_MS)
         }
     }
 
@@ -122,9 +131,7 @@ fun ScannerScreen(navHostController: NavHostController) {
 
     DisposableEffect(Unit) {
         onDispose {
-            if (hasPermission) {
-                ScanManager.stopScan(scannerCallBack)
-            }
+            ScanManager.stopUiScan(scannerCallBack)
         }
     }
 

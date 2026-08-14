@@ -41,6 +41,10 @@ object ScanManager {
     // 业务层订阅者集合
     private val callbackSet = CopyOnWriteArraySet<ScanCallbackWrapper>()
 
+    // UI 扫描会话：存在任意会话时，不允许连接器避让或周期休息打断物理扫描。
+    // 所有状态均在主线程读写，无需额外同步。
+    private val uiScanTimeoutTasks = mutableMapOf<ScanCallbackWrapper, Runnable>()
+
     // ================= 状态控制变量 =================
     private var isScanning = false
     private var refCount = 0
@@ -60,6 +64,7 @@ object ScanManager {
     private const val WINDOW_MS = 30_000L            // 系统时间窗口 30 秒
     private const val APPLY_DEBOUNCE_MS = 300L       // 扫描启停的防抖时间 (合并高频请求)
     private const val CONNECTION_PAUSE_MS = 2000L    // 连接时的射频避让时间
+    private const val SCAN_FAILURE_RETRY_MS = 1000L  // 扫描注册失败后的有限频率恢复延迟
 
     // 【新增】：扫描 1 分钟休息 3 秒的配置
     private const val CONTINUOUS_SCAN_MAX_MS = 60_000L // 持续扫描最大时长：1分钟
@@ -164,10 +169,62 @@ object ScanManager {
     }
 
     /**
+     * 启动最高优先级的 UI 扫描。
+     *
+     * UI 扫描在 [maxScanDurationMs] 内不会被连接器的扫描避让或周期休息打断，
+     * 只会因 [stopUiScan] 或超时而结束。调用方必须提供正数的最大扫描时长，
+     * 避免 UI 遗漏回调时导致无限扫描。
+     *
+     * 同一回调重复调用会重置超时时间，不会重复注册底层扫描。
+     */
+    fun startUiScan(cb: ScanCallbackWrapper, maxScanDurationMs: Long) {
+        require(maxScanDurationMs > 0) { "maxScanDurationMs must be greater than 0" }
+
+        mainHandler.post {
+            val wasUiScanActive = hasActiveUiScan()
+            val isNewSubscriber = callbackSet.add(cb)
+            if (isNewSubscriber) {
+                refCount++
+                logger.i("[UI Start] RefCount=$refCount. High-priority subscriber added.")
+                pushCacheToCallback(cb)
+            } else {
+                logger.i("[UI Start] High-priority subscriber timeout reset.")
+            }
+
+            uiScanTimeoutTasks.remove(cb)?.let(mainHandler::removeCallbacks)
+            val timeoutTask = Runnable {
+                stopUiScanInternal(cb, UiScanStopReason.TIMEOUT)
+            }
+            uiScanTimeoutTasks[cb] = timeoutTask
+            mainHandler.postDelayed(timeoutTask, maxScanDurationMs)
+
+            // UI 优先级覆盖已经生效的连接避让和周期休息。
+            isPausedByConnection = false
+            isResting = false
+            mainHandler.removeCallbacks(resumeTask)
+            mainHandler.removeCallbacks(exitRestTask)
+            mainHandler.removeCallbacks(enterRestTask)
+
+            if (!wasUiScanActive || !isScanning) {
+                performApply()
+            }
+        }
+    }
+
+    /** UI 主动结束最高优先级扫描。 */
+    fun stopUiScan(cb: ScanCallbackWrapper) {
+        mainHandler.post {
+            stopUiScanInternal(cb, UiScanStopReason.USER_REQUEST)
+        }
+    }
+
+    /**
      * 业务层请求停止扫描
      */
     fun stopScan(cb: ScanCallbackWrapper) {
         mainHandler.post {
+            // 容错：即使 UI 调用了通用停止方法，也要正确释放其优先级状态。
+            uiScanTimeoutTasks.remove(cb)?.let(mainHandler::removeCallbacks)
             if (callbackSet.remove(cb)) {
                 refCount--
                 logger.i("[Stop] RefCount=$refCount. Subscriber removed.")
@@ -177,6 +234,7 @@ object ScanManager {
                     scheduleClearCache()
                 }
                 scheduleApply()
+                scheduleNormalScanRestIfNeeded()
             }
         }
     }
@@ -188,6 +246,11 @@ object ScanManager {
      */
     fun onConnectionSignal() {
         mainHandler.post {
+            if (hasActiveUiScan()) {
+                logger.i("存在 UI 优先扫描，忽略连接避让请求")
+                return@post
+            }
+
             logger.w("因需要连接，暂停扫描")
             isPausedByConnection = true
 
@@ -235,6 +298,8 @@ object ScanManager {
 
     private val applyTask = Runnable { performApply() }
 
+    private val scanFailureRetryTask = Runnable { performApply() }
+
     private val resumeTask = Runnable {
         Log.d(TAG, "Connection pause expired. Checking if scan needs to resume...")
         isPausedByConnection = false
@@ -250,6 +315,12 @@ object ScanManager {
      * 评估当前状态，决定是否需要启动/停止物理底层扫描
      */
     private fun performApply() {
+        // UI 扫描优先级最高，只受 UI 主动停止和超时控制。
+        if (hasActiveUiScan()) {
+            performStartPhysical()
+            return
+        }
+
         // 1. 如果当前处于连接避让锁定期，禁止启动物理扫描
         if (isPausedByConnection) {
             Log.d(TAG, "Currently in connection pause lock. Ignore physical start.")
@@ -303,12 +374,11 @@ object ScanManager {
             currentScanner.startScan(null, settings, innerCallback)
 
             isScanning = true
+            mainHandler.removeCallbacks(scanFailureRetryTask)
             startTimestamps.addLast(now)
             logger.i("蓝牙扫描器开始扫描。")
 
-            // 【新增】：成功启动扫描后，安排 1 分钟后进入强制休息
-            mainHandler.removeCallbacks(enterRestTask)
-            mainHandler.postDelayed(enterRestTask, CONTINUOUS_SCAN_MAX_MS)
+            scheduleNormalScanRestIfNeeded()
 
         } catch (e: Exception) {
             logger.e("Physical scan start failed: ${e.message}")
@@ -318,6 +388,7 @@ object ScanManager {
     private fun performStopPhysical() {
         // 【新增】：只要物理扫描停止，就立刻取消“1分钟进入休息”的倒计时任务
         mainHandler.removeCallbacks(enterRestTask)
+        mainHandler.removeCallbacks(scanFailureRetryTask)
 
         if (!isScanning) return
         try {
@@ -327,6 +398,35 @@ object ScanManager {
             Log.e(TAG, "Physical scan stop failed: ${e.message}")
         } finally {
             isScanning = false
+        }
+    }
+
+    private fun hasActiveUiScan(): Boolean = uiScanTimeoutTasks.isNotEmpty()
+
+    private fun stopUiScanInternal(cb: ScanCallbackWrapper, reason: UiScanStopReason) {
+        val timeoutTask = uiScanTimeoutTasks.remove(cb) ?: return
+        mainHandler.removeCallbacks(timeoutTask)
+
+        if (callbackSet.remove(cb)) {
+            refCount--
+            logger.i("[UI Stop] reason=$reason, RefCount=$refCount. High-priority subscriber removed.")
+            if (refCount <= 0) {
+                refCount = 0
+                scheduleClearCache()
+            }
+        }
+
+        runCatching { cb.onUiScanStopped(reason) }
+            .onFailure { logger.e("UI scan stop callback failed: ${it.message}") }
+        performApply()
+        scheduleNormalScanRestIfNeeded()
+    }
+
+    /** UI 优先扫描期间禁止周期停扫；UI 结束后才恢复普通扫描的周期。 */
+    private fun scheduleNormalScanRestIfNeeded() {
+        mainHandler.removeCallbacks(enterRestTask)
+        if (isScanning && !hasActiveUiScan()) {
+            mainHandler.postDelayed(enterRestTask, CONTINUOUS_SCAN_MAX_MS)
         }
     }
 
@@ -345,6 +445,11 @@ object ScanManager {
         override fun onScanFailed(errorCode: Int) {
             Log.e(TAG, "onScanFailed! ErrorCode: $errorCode")
             isScanning = false
+            mainHandler.removeCallbacks(enterRestTask)
+            if (refCount > 0) {
+                mainHandler.removeCallbacks(scanFailureRetryTask)
+                mainHandler.postDelayed(scanFailureRetryTask, SCAN_FAILURE_RETRY_MS)
+            }
         }
     }
 
@@ -353,5 +458,13 @@ object ScanManager {
      */
     interface ScanCallbackWrapper {
         fun onScanResult(result: ScanResult)
+
+        /** 仅 [startUiScan] 会回调扫描结束原因。 */
+        fun onUiScanStopped(reason: UiScanStopReason) = Unit
+    }
+
+    enum class UiScanStopReason {
+        USER_REQUEST,
+        TIMEOUT
     }
 }
