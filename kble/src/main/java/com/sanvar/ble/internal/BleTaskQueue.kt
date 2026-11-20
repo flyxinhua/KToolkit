@@ -299,9 +299,7 @@ internal class BleTaskQueue(
         completionCallback: ((Boolean) -> Unit)? = null
     ) {
         // 计算分包大小
-        val payloadSize = if (BleHelper.isSafePayloadForMac(context, config.macAddress)
-            || BleHelper.isSendingBigData(config.macAddress)
-        ) {
+        val payloadSize = if (BleHelper.isSafePayloadForMac(context, config.macAddress)) {
             // 安全模式：设备在黑名单中，或当前连接上曾有大包写入超时，降级为 20 字节
             20
         } else {
